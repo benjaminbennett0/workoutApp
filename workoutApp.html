@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <link rel="manifest" href="manifest.json">
+	<meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, landscape">
     <title>Dynamic Workout OS</title>
     <style>
@@ -70,5 +71,10 @@
             // Here you would trigger the Google Sheet data fetch
         }
     </script>
+	<script>
+	  if ('serviceWorker' in navigator) {
+		navigator.serviceWorker.register('./sw.js');
+	  }
+	</script>
 </body>
 </html>

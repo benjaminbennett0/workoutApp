@@ -1,0 +1,16 @@
+{
+  "name": "Workout Timer OS",
+  "short_name": "Workout",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#1DB954",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3043/3043888.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
