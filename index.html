@@ -3,27 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dynamic Workout OS</title>
+    <title>Workout Timer OS - Supersets</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
 
     <style>
-        body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
-        
-        /* Top Music Bar */
-        #music-zone { height: 15vh; border-bottom: 2px solid #333; position: relative; display: flex; align-items: center; justify-content: center; }
-        #progress-bar { position: absolute; bottom: 0; left: 0; height: 4px; background: #1DB954; width: 40%; }
-
-        /* Main Workout Zone */
-        #workout-zone {
-            height: 85vh;
-            display: flex;
-            flex-direction: row; /* Side-by-side in landscape */
-            align-items: center;
-            justify-content: space-evenly;
+        body { 
+            margin: 0; 
+            background: #000; 
+            color: white; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            overflow: hidden; 
+            height: 100vh; 
+            width: 100vw; 
         }
         
+        /* Top Music Bar */
+        #music-zone { 
+            height: 15vh; 
+            border-bottom: 2px solid #333; 
+            position: relative; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        #progress-bar { 
+            position: absolute; 
+            bottom: 0; 
+            left: 0; 
+            height: 4px; 
+            background: #1DB954; 
+            width: 40%; 
+        }
+
+        /* Main Workout Zone - Horizontal Flex for Landscape */
+        #workout-zone { 
+            height: 85vh; 
+            display: flex; 
+            flex-direction: row; 
+            align-items: center; 
+            justify-content: space-evenly; 
+        }
+
         .superset-box {
             flex: 1;
             display: flex;
@@ -31,23 +53,62 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
-        }
-        
-        #timer-container {
-            width: 25vw;
             text-align: center;
-            border-left: 2px solid #333;
-            border-right: 2px solid #333;
+        }
+
+        /* Divider / Timer Section */
+        #timer-container {
+            width: 20vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-left: 1px solid #333;
+            border-right: 1px solid #333;
+            height: 60%;
         }
         
-        #timer { font-size: 8vw; font-weight: bold; }
-        .activity-label { font-size: 1.5vw; color: #1DB954; letter-spacing: 2px; }
-        .exercise-name { font-size: 4vw; font-weight: bold; margin: 10px 0; }
-        .exercise-stats { font-size: 3vw; color: #aaa; }
+        #timer { font-size: 8vw; font-weight: bold; line-height: 1; }
+        
+        /* Typography */
+        .activity-label { font-size: 1.2vw; color: #1DB954; letter-spacing: 2px; margin-bottom: 5px; }
+        .exercise-name { font-size: 3.5vw; font-weight: bold; margin: 10px 0; line-height: 1.1; }
+        .exercise-stats { font-size: 2.5vw; color: #aaa; }
 
         /* Selection Screen */
-        #selection-overlay { position: fixed; inset: 0; background: black; display: flex; gap: 20px; align-items: center; justify-content: center; z-index: 10; }
-        .routine-btn { padding: 40px; font-size: 2rem; background: #222; border: 2px solid white; color: white; border-radius: 15px; }
+        #selection-overlay { 
+            position: fixed; 
+            inset: 0; 
+            background: black; 
+            display: flex; 
+            gap: 20px; 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 10; 
+        }
+        .routine-btn { 
+            padding: 40px; 
+            font-size: 2rem; 
+            background: #222; 
+            border: 2px solid white; 
+            color: white; 
+            border-radius: 15px; 
+            cursor: pointer;
+        }
+
+        /* Fullscreen Toggle Button */
+        #fs-btn {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #555;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 5;
+        }
     </style>
 </head>
 <body>
@@ -65,96 +126,151 @@
     <div id="workout-zone" onclick="handleWorkoutTap(event)">
         <div class="superset-box" id="box-a">
             <div class="activity-label">EXERCISE A</div>
-            <div class="exercise-name" id="name-a">Loading...</div>
-            <div class="exercise-stats" id="stats-a">-- lbs x --</div>
+            <div class="exercise-name" id="name-a">--</div>
+            <div class="exercise-stats" id="stats-a">--</div>
         </div>
-    
+
         <div id="timer-container">
+            <div class="activity-label">REST</div>
             <div id="timer">00:00</div>
         </div>
-    
+
         <div class="superset-box" id="box-b">
             <div class="activity-label">EXERCISE B</div>
-            <div class="exercise-name" id="name-b">Loading...</div>
-            <div class="exercise-stats" id="stats-b">-- lbs x --</div>
+            <div class="exercise-name" id="name-b">--</div>
+            <div class="exercise-stats" id="stats-b">--</div>
         </div>
     </div>
 
+    <button id="fs-btn" onclick="toggleFullscreen()">⛶ FULLSCREEN</button>
+
     <script>
+        let workoutData = [];
+        let currentIndex = 0;
         let isRunning = false;
-        
-        function handleWorkoutTap(e) {
-            const isLeft = e.clientX < window.innerWidth / 2;
-            if (isRunning) {
-                if (isLeft) stopTimer();
-                else nextActivity();
-            } else {
-                if (isLeft) prevActivity();
-                else startTimer();
+        let timerInterval;
+        let seconds = 0;
+
+        // REPLACE THIS URL with your published CSV link
+        const CSV_URL = "YOUR_PUBLISHED_CSV_URL_HERE";
+
+        async function startRoutine(type) {
+            const overlay = document.getElementById('selection-overlay');
+            overlay.innerHTML = "<h1>Loading " + type + "...</h1>";
+
+            try {
+                const response = await fetch(CSV_URL);
+                const data = await response.text();
+                
+                // Parse CSV and filter by type (Column A)
+                const rows = data.split('\n').map(row => row.split(','));
+                workoutData = rows.filter(row => row[0] && row[0].trim().toLowerCase() === type);
+                
+                if (workoutData.length === 0) {
+                    alert("No exercises found for: " + type);
+                    location.reload();
+                    return;
+                }
+
+                overlay.style.display = 'none';
+                currentIndex = 0;
+                displayExercise();
+            } catch (err) {
+                alert("Error loading sheet: " + err);
+                location.reload();
             }
         }
 
-        function handleMusicTap(e) {
-            const isLeft = e.clientX < window.innerWidth / 2;
-            if (isLeft) console.log("Music: Back/Stop");
-            else console.log("Music: Skip/Play");
-        }
-
-        function startTimer() { isRunning = true; document.getElementById('timer').style.color = 'white'; }
-        function stopTimer() { isRunning = false; document.getElementById('timer').style.color = 'red'; }
-        
-        function startRoutine(type) {
-            document.getElementById('selection-overlay').style.display = 'none';
-            // Data fetch logic goes here
-            console.log("Starting " + type);
-        }
-
         function displayExercise() {
-            // We now move by +2 to get the next pair
+            // Grab current pair for Superset
             const exA = workoutData[currentIndex];
             const exB = workoutData[currentIndex + 1];
-        
-            // Update Box A
+
+            // Update Left Box
             document.getElementById('name-a').innerText = exA[1].toUpperCase();
             document.getElementById('stats-a').innerText = `${exA[2]} x ${exA[3]}`;
-        
-            // Update Box B (Check if there is actually a second exercise)
+
+            // Update Right Box
             if (exB) {
                 document.getElementById('name-b').innerText = exB[1].toUpperCase();
                 document.getElementById('stats-b').innerText = `${exB[2]} x ${exB[3]}`;
                 document.getElementById('box-b').style.opacity = "1";
             } else {
-                document.getElementById('name-b').innerText = "FINISH";
+                document.getElementById('name-b').innerText = "DONE";
                 document.getElementById('stats-b').innerText = "";
                 document.getElementById('box-b').style.opacity = "0.3";
             }
-        
-            document.getElementById('timer').innerText = "00:00";
-            document.getElementById('timer').style.color = 'white';
+
+            resetTimer();
         }
-        
+
+        function handleWorkoutTap(e) {
+            const isLeft = e.clientX < window.innerWidth / 2;
+            
+            if (isLeft) {
+                // Left Side: Reset/Prev logic
+                if (currentIndex > 1) {
+                    currentIndex -= 2;
+                    displayExercise();
+                }
+            } else {
+                // Right Side: Start Timer or Next Superset
+                if (!isRunning && seconds === 0) {
+                    startTimer();
+                } else {
+                    nextActivity();
+                }
+            }
+        }
+
+        function startTimer() {
+            if (isRunning) return;
+            isRunning = true;
+            document.getElementById('timer').style.color = '#1DB954';
+            timerInterval = setInterval(() => {
+                seconds++;
+                let mins = Math.floor(seconds / 60);
+                let secs = seconds % 60;
+                document.getElementById('timer').innerText = 
+                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
         function nextActivity() {
-            // Jump by 2 for supersets
             if (currentIndex < workoutData.length - 2) {
                 currentIndex += 2;
                 displayExercise();
-                stopTimer();
             } else {
                 alert("Workout Complete!");
                 location.reload();
             }
         }
-        function prevActivity() { console.log("Prev"); }
 
-        // IMPROVED SERVICE WORKER REGISTRATION
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            seconds = 0;
+            document.getElementById('timer').innerText = "00:00";
+            document.getElementById('timer').style.color = 'white';
+        }
+
+        function handleMusicTap(e) {
+            console.log("Music tap triggered");
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW Registered'))
-                    .catch(err => console.log('SW Failed', err));
+                navigator.serviceWorker.register('./sw.js');
             });
         }
     </script>
 </body>
 </html>
-
