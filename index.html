@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - Supersets</title>
+    <title>Workout Timer OS - V1.0.4</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -37,7 +37,7 @@
             width: 40%; 
         }
 
-        /* Main Workout Zone - Horizontal Flex for Landscape */
+        /* Main Workout Zone */
         #workout-zone { 
             height: 85vh; 
             display: flex; 
@@ -56,7 +56,6 @@
             text-align: center;
         }
 
-        /* Divider / Timer Section */
         #timer-container {
             width: 20vw;
             display: flex;
@@ -70,7 +69,6 @@
         
         #timer { font-size: 8vw; font-weight: bold; line-height: 1; }
         
-        /* Typography */
         .activity-label { font-size: 1.2vw; color: #1DB954; letter-spacing: 2px; margin-bottom: 5px; }
         .exercise-name { font-size: 3.5vw; font-weight: bold; margin: 10px 0; line-height: 1.1; }
         .exercise-stats { font-size: 2.5vw; color: #aaa; }
@@ -81,6 +79,7 @@
             inset: 0; 
             background: black; 
             display: flex; 
+            flex-direction: column;
             gap: 20px; 
             align-items: center; 
             justify-content: center; 
@@ -94,9 +93,18 @@
             color: white; 
             border-radius: 15px; 
             cursor: pointer;
+            width: 300px;
         }
 
-        /* Fullscreen Toggle Button */
+        #version-tag {
+            position: absolute;
+            bottom: 15px;
+            right: 20px;
+            color: #444;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
         #fs-btn {
             position: fixed;
             bottom: 10px;
@@ -110,7 +118,6 @@
             z-index: 5;
         }
 
-        /* Wake Lock Status Indicator */
         #wake-status {
             position: fixed;
             bottom: 10px;
@@ -126,6 +133,7 @@
     <div id="selection-overlay">
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
+        <div id="version-tag">V1.0.4</div>
     </div>
 
     <div id="music-zone" onclick="handleMusicTap(event)">
@@ -156,6 +164,7 @@
     <button id="fs-btn" onclick="toggleFullscreen()">⛶ FULLSCREEN</button>
 
     <script>
+        const VERSION = "1.0.4";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -165,79 +174,55 @@
 
         const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmrKfGKM6t61M-jDPlPcClxpoewbXNUWoaKoPzdEGdLEFdlvvCM-y456r46CYkh1YXEV-KvmEuWP7o/pub?gid=0&single=true&output=csv";
 
-        // Wake Lock Logic
         async function requestWakeLock() {
             if (!('wakeLock' in navigator)) return;
             try {
                 wakeLock = await navigator.wakeLock.request('screen');
                 document.getElementById('wake-status').innerText = "SCREEN LOCK: ACTIVE";
                 document.getElementById('wake-status').style.color = "#1DB954";
-                
                 wakeLock.addEventListener('release', () => {
                     document.getElementById('wake-status').innerText = "SCREEN LOCK: INACTIVE";
                     document.getElementById('wake-status').style.color = "#333";
                     wakeLock = null;
                 });
-            } catch (err) {
-                console.warn(`Wake Lock Error: ${err.message}`);
-            }
+            } catch (err) { console.warn("Wake Lock fail"); }
         }
 
-        document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible' && !wakeLock && workoutData.length > 0) {
-                await requestWakeLock();
-            }
-        });
-
-        // The logic for fetching and retrying
         async function startRoutine(type) {
             const overlay = document.getElementById('selection-overlay');
-            overlay.innerHTML = "<h1>Initializing " + type + "...</h1>";
-
-            // Small delay to ensure browser state is settled
-            await new Promise(res => setTimeout(res, 300));
+            overlay.innerHTML = `<h1>Connecting...</h1><p style="color:#444">Ver ${VERSION}</p>`;
 
             try {
-                // Request wake lock early
                 requestWakeLock();
+                const timestamp = new Date().getTime();
+                const response = await fetch(`${CSV_URL}&cachebust=${timestamp}`);
+                
+                if (!response.ok) throw new Error("Could not reach Google Sheets");
+                
+                const rawText = await response.text();
+                const rows = rawText.split(/\r?\n|\r/).map(row => 
+                    row.split(',').map(cell => cell.trim())
+                );
 
-                overlay.innerHTML = "<h1>Fetching Workout Data...</h1>";
-                let rawData = await fetchWithRetry(CSV_URL);
-                
-                const rows = rawData.split('\n').map(row => 
-                    row.split(',').map(cell => cell.replace('\r', '').trim())
-                );
-                
-                // Filtering
                 workoutData = rows.slice(1).filter(row => 
-                    row[0] && row[0].toLowerCase() === type
+                    row[0] && row[0].toLowerCase() === type.toLowerCase()
                 );
-                
+
                 if (workoutData.length === 0) {
-                    throw new Error("Found 0 matches for '" + type + "' in Column A.");
+                    throw new Error(`Sheet found, but no rows labeled '${type}' in Column A`);
                 }
 
                 overlay.style.display = 'none';
                 currentIndex = 0;
                 displayExercise();
-            } catch (err) {
-                console.error(err);
-                alert("Load Error: " + err.message + "\n\nTry clicking the button again.");
-                location.reload();
-            }
-        }
 
-        async function fetchWithRetry(url, retries = 3) {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now());
-                    if (!response.ok) throw new Error("Server response was not OK");
-                    return await response.text();
-                } catch (err) {
-                    console.log(`Retry attempt ${i+1} failed...`);
-                    if (i === retries - 1) throw err;
-                    await new Promise(res => setTimeout(res, 500));
-                }
+            } catch (err) {
+                overlay.innerHTML = `
+                    <div style="text-align:center; padding:20px;">
+                        <p style="color:red;">Error: ${err.message}</p>
+                        <button class="routine-btn" onclick="location.reload()">Try Again</button>
+                        <p style="color:#444; margin-top:20px;">Ver ${VERSION}</p>
+                    </div>`;
             }
         }
 
@@ -259,23 +244,16 @@
                 document.getElementById('stats-b').innerText = "";
                 document.getElementById('box-b').style.opacity = "0.3";
             }
-
             resetTimer();
         }
 
         function handleWorkoutTap(e) {
             const isLeft = e.clientX < window.innerWidth / 2;
             if (isLeft) {
-                if (currentIndex >= 2) {
-                    currentIndex -= 2;
-                    displayExercise();
-                }
+                if (currentIndex >= 2) { currentIndex -= 2; displayExercise(); }
             } else {
-                if (!isRunning && seconds === 0) {
-                    startTimer();
-                } else {
-                    nextActivity();
-                }
+                if (!isRunning && seconds === 0) { startTimer(); } 
+                else { nextActivity(); }
             }
         }
 
@@ -284,7 +262,6 @@
             isRunning = true;
             document.getElementById('timer').style.color = '#1DB954';
             document.getElementById('timer-label').innerText = "RUNNING";
-            
             timerInterval = setInterval(() => {
                 seconds++;
                 let mins = Math.floor(seconds / 60);
@@ -313,22 +290,15 @@
             document.getElementById('timer-label').innerText = "REST";
         }
 
-        function handleMusicTap(e) {
-            console.log("Music Tab");
-        }
+        function handleMusicTap(e) { console.log("Music Tap"); }
 
         function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-            } else {
-                document.exitFullscreen();
-            }
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); } 
+            else { document.exitFullscreen(); }
         }
 
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js');
-            });
+            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
         }
     </script>
 </body>
