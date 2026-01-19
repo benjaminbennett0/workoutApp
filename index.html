@@ -16,11 +16,34 @@
         #progress-bar { position: absolute; bottom: 0; left: 0; height: 4px; background: #1DB954; width: 40%; }
 
         /* Main Workout Zone */
-        #workout-zone { height: 85vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        #workout-zone {
+            height: 85vh;
+            display: flex;
+            flex-direction: row; /* Side-by-side in landscape */
+            align-items: center;
+            justify-content: space-evenly;
+        }
         
-        #timer { font-size: 15vw; font-weight: bold; }
-        #activity-info { font-size: 3vw; color: #aaa; }
-        #weight-reps { font-size: 5vw; color: #1DB954; margin-top: 10px; }
+        .superset-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        #timer-container {
+            width: 25vw;
+            text-align: center;
+            border-left: 2px solid #333;
+            border-right: 2px solid #333;
+        }
+        
+        #timer { font-size: 8vw; font-weight: bold; }
+        .activity-label { font-size: 1.5vw; color: #1DB954; letter-spacing: 2px; }
+        .exercise-name { font-size: 4vw; font-weight: bold; margin: 10px 0; }
+        .exercise-stats { font-size: 3vw; color: #aaa; }
 
         /* Selection Screen */
         #selection-overlay { position: fixed; inset: 0; background: black; display: flex; gap: 20px; align-items: center; justify-content: center; z-index: 10; }
@@ -40,9 +63,21 @@
     </div>
 
     <div id="workout-zone" onclick="handleWorkoutTap(event)">
-        <div id="activity-info">READY TO START</div>
-        <div id="timer">00:00</div>
-        <div id="weight-reps">Select Routine</div>
+        <div class="superset-box" id="box-a">
+            <div class="activity-label">EXERCISE A</div>
+            <div class="exercise-name" id="name-a">Loading...</div>
+            <div class="exercise-stats" id="stats-a">-- lbs x --</div>
+        </div>
+    
+        <div id="timer-container">
+            <div id="timer">00:00</div>
+        </div>
+    
+        <div class="superset-box" id="box-b">
+            <div class="activity-label">EXERCISE B</div>
+            <div class="exercise-name" id="name-b">Loading...</div>
+            <div class="exercise-stats" id="stats-b">-- lbs x --</div>
+        </div>
     </div>
 
     <script>
@@ -74,7 +109,41 @@
             console.log("Starting " + type);
         }
 
-        function nextActivity() { console.log("Next"); }
+        function displayExercise() {
+            // We now move by +2 to get the next pair
+            const exA = workoutData[currentIndex];
+            const exB = workoutData[currentIndex + 1];
+        
+            // Update Box A
+            document.getElementById('name-a').innerText = exA[1].toUpperCase();
+            document.getElementById('stats-a').innerText = `${exA[2]} x ${exA[3]}`;
+        
+            // Update Box B (Check if there is actually a second exercise)
+            if (exB) {
+                document.getElementById('name-b').innerText = exB[1].toUpperCase();
+                document.getElementById('stats-b').innerText = `${exB[2]} x ${exB[3]}`;
+                document.getElementById('box-b').style.opacity = "1";
+            } else {
+                document.getElementById('name-b').innerText = "FINISH";
+                document.getElementById('stats-b').innerText = "";
+                document.getElementById('box-b').style.opacity = "0.3";
+            }
+        
+            document.getElementById('timer').innerText = "00:00";
+            document.getElementById('timer').style.color = 'white';
+        }
+        
+        function nextActivity() {
+            // Jump by 2 for supersets
+            if (currentIndex < workoutData.length - 2) {
+                currentIndex += 2;
+                displayExercise();
+                stopTimer();
+            } else {
+                alert("Workout Complete!");
+                location.reload();
+            }
+        }
         function prevActivity() { console.log("Prev"); }
 
         // IMPROVED SERVICE WORKER REGISTRATION
@@ -88,3 +157,4 @@
     </script>
 </body>
 </html>
+
