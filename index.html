@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.0.6</title>
+    <title>Workout Timer OS - V1.0.7</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -57,7 +57,7 @@
             height: 60%;
         }
         
-        #timer { font-size: 8vw; font-weight: bold; line-height: 1; }
+        #timer { font-size: 8vw; font-weight: bold; line-height: 1; transition: color 0.3s; }
         .activity-label { font-size: 1.2vw; color: #1DB954; letter-spacing: 2px; margin-bottom: 5px; }
         .exercise-name { font-size: 3.5vw; font-weight: bold; margin: 10px 0; line-height: 1.1; }
         .exercise-stats { font-size: 2.5vw; color: #aaa; }
@@ -84,7 +84,6 @@
             width: 300px;
         }
 
-        /* NEW VERSION TAG POSITION */
         #version-tag {
             position: absolute;
             top: 20px;
@@ -112,7 +111,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.0.6</div>
+        <div id="version-tag">STABLE V1.0.7</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -141,7 +140,7 @@
     <div id="wake-status">SCREEN LOCK: INACTIVE</div>
 
     <script>
-        const VERSION = "1.0.6";
+        const VERSION = "1.0.7";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -175,6 +174,7 @@
                 if (workoutData.length === 0) throw new Error("No exercises found");
 
                 overlay.style.display = 'none';
+                currentIndex = 0;
                 displayExercise();
             } catch (err) {
                 alert("Error: " + err.message);
@@ -197,16 +197,40 @@
                 document.getElementById('name-b').innerText = "FINISH";
                 document.getElementById('box-b').style.opacity = "0.3";
             }
-            resetTimer();
         }
 
         function handleWorkoutTap(e) {
             const isLeft = e.clientX < window.innerWidth / 2;
-            if (isLeft) {
-                if (currentIndex >= 2) { currentIndex -= 2; displayExercise(); }
+
+            if (isRunning) {
+                // TIMER ACTIVE STATE
+                if (isLeft) {
+                    stopTimer(); // Left stops the timer
+                } else {
+                    // Right goes to next superset, resets time, and keeps running
+                    if (currentIndex < workoutData.length - 2) {
+                        currentIndex += 2;
+                        displayExercise();
+                        resetTimerOnly(); 
+                    } else {
+                        alert("Workout Complete!");
+                        location.reload();
+                    }
+                }
             } else {
-                if (!isRunning && seconds === 0) { startTimer(); } 
-                else { nextActivity(); }
+                // TIMER OFF STATE
+                if (isLeft) {
+                    // Go back or exit
+                    if (currentIndex >= 2) {
+                        currentIndex -= 2;
+                        displayExercise();
+                        resetTimerOnly();
+                    } else {
+                        location.reload(); // Go back to routine selection
+                    }
+                } else {
+                    startTimer(); // Right starts the timer
+                }
             }
         }
 
@@ -214,30 +238,29 @@
             if (isRunning) return;
             isRunning = true;
             document.getElementById('timer').style.color = '#1DB954';
+            document.getElementById('timer-label').innerText = "RUNNING";
             timerInterval = setInterval(() => {
                 seconds++;
-                let mins = Math.floor(seconds / 60);
-                let secs = seconds % 60;
-                document.getElementById('timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                updateTimerDisplay();
             }, 1000);
         }
 
-        function nextActivity() {
-            if (currentIndex < workoutData.length - 2) {
-                currentIndex += 2;
-                displayExercise();
-            } else {
-                alert("Workout Complete!");
-                location.reload();
-            }
-        }
-
-        function resetTimer() {
+        function stopTimer() {
             clearInterval(timerInterval);
             isRunning = false;
-            seconds = 0;
-            document.getElementById('timer').innerText = "00:00";
             document.getElementById('timer').style.color = 'white';
+            document.getElementById('timer-label').innerText = "PAUSED";
+        }
+
+        function resetTimerOnly() {
+            seconds = 0;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            let mins = Math.floor(seconds / 60);
+            let secs = seconds % 60;
+            document.getElementById('timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
         if ('serviceWorker' in navigator) {
