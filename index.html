@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="manifest" href="manifest.json">
-	<meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, landscape">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dynamic Workout OS</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1DB954">
+
     <style>
-        body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; height: 100vh; }
+        body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
         
         /* Top Music Bar */
         #music-zone { height: 15vh; border-bottom: 2px solid #333; position: relative; display: flex; align-items: center; justify-content: center; }
@@ -32,14 +35,14 @@
     </div>
 
     <div id="music-zone" onclick="handleMusicTap(event)">
-        <div><strong>Song Title</strong> - Artist Name</div>
+        <div id="song-display"><strong>Song Title</strong> - Artist Name</div>
         <div id="progress-bar"></div>
     </div>
 
     <div id="workout-zone" onclick="handleWorkoutTap(event)">
-        <div id="activity-info">FIRST ACTIVITY</div>
+        <div id="activity-info">READY TO START</div>
         <div id="timer">00:00</div>
-        <div id="weight-reps">135 lbs x 10</div>
+        <div id="weight-reps">Select Routine</div>
     </div>
 
     <script>
@@ -47,7 +50,6 @@
         
         function handleWorkoutTap(e) {
             const isLeft = e.clientX < window.innerWidth / 2;
-            
             if (isRunning) {
                 if (isLeft) stopTimer();
                 else nextActivity();
@@ -68,13 +70,21 @@
         
         function startRoutine(type) {
             document.getElementById('selection-overlay').style.display = 'none';
-            // Here you would trigger the Google Sheet data fetch
+            // Data fetch logic goes here
+            console.log("Starting " + type);
+        }
+
+        function nextActivity() { console.log("Next"); }
+        function prevActivity() { console.log("Prev"); }
+
+        // IMPROVED SERVICE WORKER REGISTRATION
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW Registered'))
+                    .catch(err => console.log('SW Failed', err));
+            });
         }
     </script>
-	<script>
-	  if ('serviceWorker' in navigator) {
-		navigator.serviceWorker.register('./sw.js');
-	  }
-	</script>
 </body>
 </html>
