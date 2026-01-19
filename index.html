@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.0.4</title>
+    <title>Workout Timer OS - V1.0.5</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -100,8 +100,9 @@
             position: absolute;
             bottom: 15px;
             right: 20px;
-            color: #444;
-            font-size: 12px;
+            color: #1DB954; /* Green so it stands out */
+            font-size: 14px;
+            font-weight: bold;
             letter-spacing: 1px;
         }
 
@@ -116,6 +117,7 @@
             border-radius: 5px;
             font-size: 12px;
             z-index: 5;
+            display: none; /* Hidden unless needed */
         }
 
         #wake-status {
@@ -133,7 +135,7 @@
     <div id="selection-overlay">
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
-        <div id="version-tag">V1.0.4</div>
+        <div id="version-tag">VERSION 1.0.5</div>
     </div>
 
     <div id="music-zone" onclick="handleMusicTap(event)">
@@ -164,7 +166,7 @@
     <button id="fs-btn" onclick="toggleFullscreen()">⛶ FULLSCREEN</button>
 
     <script>
-        const VERSION = "1.0.4";
+        const VERSION = "1.0.5";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -190,7 +192,7 @@
 
         async function startRoutine(type) {
             const overlay = document.getElementById('selection-overlay');
-            overlay.innerHTML = `<h1>Connecting...</h1><p style="color:#444">Ver ${VERSION}</p>`;
+            overlay.innerHTML = `<h1>Connecting...</h1><p style="color:#1DB954">Ver ${VERSION}</p>`;
 
             try {
                 requestWakeLock();
@@ -221,7 +223,7 @@
                     <div style="text-align:center; padding:20px;">
                         <p style="color:red;">Error: ${err.message}</p>
                         <button class="routine-btn" onclick="location.reload()">Try Again</button>
-                        <p style="color:#444; margin-top:20px;">Ver ${VERSION}</p>
+                        <p style="color:#1DB954; margin-top:20px;">Ver ${VERSION}</p>
                     </div>`;
             }
         }
@@ -298,7 +300,19 @@
         }
 
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
+            window.addEventListener('load', () => { 
+                navigator.serviceWorker.register('./sw.js').then(reg => {
+                    reg.onupdatefound = () => {
+                        const installingWorker = reg.installing;
+                        installingWorker.onstatechange = () => {
+                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New content is available; force refresh
+                                location.reload();
+                            }
+                        };
+                    };
+                });
+            });
         }
     </script>
 </body>
