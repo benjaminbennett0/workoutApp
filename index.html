@@ -110,7 +110,7 @@
             z-index: 5;
         }
 
-        /* Wake Lock Status Indicator (Subtle) */
+        /* Wake Lock Status Indicator */
         #wake-status {
             position: fixed;
             bottom: 10px;
@@ -163,62 +163,81 @@
         let seconds = 0;
         let wakeLock = null;
 
-        // FIXED CSV URL
         const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmrKfGKM6t61M-jDPlPcClxpoewbXNUWoaKoPzdEGdLEFdlvvCM-y456r46CYkh1YXEV-KvmEuWP7o/pub?gid=0&single=true&output=csv";
 
-        // --- SCREEN WAKE LOCK LOGIC ---
+        // Wake Lock Logic
         async function requestWakeLock() {
+            if (!('wakeLock' in navigator)) return;
             try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    document.getElementById('wake-status').innerText = "SCREEN LOCK: ACTIVE";
-                    document.getElementById('wake-status').style.color = "#1DB954";
-                    
-                    wakeLock.addEventListener('release', () => {
-                        document.getElementById('wake-status').innerText = "SCREEN LOCK: INACTIVE";
-                        document.getElementById('wake-status').style.color = "#333";
-                    });
-                }
+                wakeLock = await navigator.wakeLock.request('screen');
+                document.getElementById('wake-status').innerText = "SCREEN LOCK: ACTIVE";
+                document.getElementById('wake-status').style.color = "#1DB954";
+                
+                wakeLock.addEventListener('release', () => {
+                    document.getElementById('wake-status').innerText = "SCREEN LOCK: INACTIVE";
+                    document.getElementById('wake-status').style.color = "#333";
+                    wakeLock = null;
+                });
             } catch (err) {
-                console.error(`${err.name}, ${err.message}`);
+                console.warn(`Wake Lock Error: ${err.message}`);
             }
         }
 
-        // Re-acquire lock when app comes back to foreground
         document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
+            if (document.visibilityState === 'visible' && !wakeLock && workoutData.length > 0) {
                 await requestWakeLock();
             }
         });
 
+        // The logic for fetching and retrying
         async function startRoutine(type) {
             const overlay = document.getElementById('selection-overlay');
-            overlay.innerHTML = "<h1>Loading " + type + "...</h1>";
+            overlay.innerHTML = "<h1>Initializing " + type + "...</h1>";
 
-            // Request Wake Lock as soon as the workout starts
-            await requestWakeLock();
+            // Small delay to ensure browser state is settled
+            await new Promise(res => setTimeout(res, 300));
 
             try {
-                const response = await fetch(CSV_URL);
-                const data = await response.text();
-                const rows = data.split('\n').map(row => row.split(',').map(cell => cell.replace('\r', '').trim()));
+                // Request wake lock early
+                requestWakeLock();
+
+                overlay.innerHTML = "<h1>Fetching Workout Data...</h1>";
+                let rawData = await fetchWithRetry(CSV_URL);
                 
-                workoutData = rows.slice(1).filter(row => {
-                    return row[0] && row[0].toLowerCase() === type;
-                });
+                const rows = rawData.split('\n').map(row => 
+                    row.split(',').map(cell => cell.replace('\r', '').trim())
+                );
+                
+                // Filtering
+                workoutData = rows.slice(1).filter(row => 
+                    row[0] && row[0].toLowerCase() === type
+                );
                 
                 if (workoutData.length === 0) {
-                    alert("No exercises found for: " + type);
-                    location.reload();
-                    return;
+                    throw new Error("Found 0 matches for '" + type + "' in Column A.");
                 }
 
                 overlay.style.display = 'none';
                 currentIndex = 0;
                 displayExercise();
             } catch (err) {
-                alert("Error loading sheet: " + err);
+                console.error(err);
+                alert("Load Error: " + err.message + "\n\nTry clicking the button again.");
                 location.reload();
+            }
+        }
+
+        async function fetchWithRetry(url, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now());
+                    if (!response.ok) throw new Error("Server response was not OK");
+                    return await response.text();
+                } catch (err) {
+                    console.log(`Retry attempt ${i+1} failed...`);
+                    if (i === retries - 1) throw err;
+                    await new Promise(res => setTimeout(res, 500));
+                }
             }
         }
 
@@ -236,7 +255,7 @@
                 document.getElementById('stats-b').innerText = `${exB[2]} x ${exB[3]}`;
                 document.getElementById('box-b').style.opacity = "1";
             } else {
-                document.getElementById('name-b').innerText = "SINGLE SET";
+                document.getElementById('name-b').innerText = "FINISH";
                 document.getElementById('stats-b').innerText = "";
                 document.getElementById('box-b').style.opacity = "0.3";
             }
@@ -246,7 +265,6 @@
 
         function handleWorkoutTap(e) {
             const isLeft = e.clientX < window.innerWidth / 2;
-            
             if (isLeft) {
                 if (currentIndex >= 2) {
                     currentIndex -= 2;
@@ -296,7 +314,7 @@
         }
 
         function handleMusicTap(e) {
-            console.log("Music Tap");
+            console.log("Music Tab");
         }
 
         function toggleFullscreen() {
