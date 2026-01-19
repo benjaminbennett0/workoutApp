@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.0.5</title>
+    <title>Workout Timer OS - V1.0.6</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -19,7 +19,6 @@
             width: 100vw; 
         }
         
-        /* Top Music Bar */
         #music-zone { 
             height: 15vh; 
             border-bottom: 2px solid #333; 
@@ -28,16 +27,7 @@
             align-items: center; 
             justify-content: center; 
         }
-        #progress-bar { 
-            position: absolute; 
-            bottom: 0; 
-            left: 0; 
-            height: 4px; 
-            background: #1DB954; 
-            width: 40%; 
-        }
 
-        /* Main Workout Zone */
         #workout-zone { 
             height: 85vh; 
             display: flex; 
@@ -68,12 +58,10 @@
         }
         
         #timer { font-size: 8vw; font-weight: bold; line-height: 1; }
-        
         .activity-label { font-size: 1.2vw; color: #1DB954; letter-spacing: 2px; margin-bottom: 5px; }
         .exercise-name { font-size: 3.5vw; font-weight: bold; margin: 10px 0; line-height: 1.1; }
         .exercise-stats { font-size: 2.5vw; color: #aaa; }
 
-        /* Selection Screen */
         #selection-overlay { 
             position: fixed; 
             inset: 0; 
@@ -96,28 +84,19 @@
             width: 300px;
         }
 
+        /* NEW VERSION TAG POSITION */
         #version-tag {
             position: absolute;
-            bottom: 15px;
-            right: 20px;
-            color: #1DB954; /* Green so it stands out */
-            font-size: 14px;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #1DB954;
+            font-size: 18px;
             font-weight: bold;
-            letter-spacing: 1px;
-        }
-
-        #fs-btn {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(255,255,255,0.1);
-            border: none;
-            color: #555;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            z-index: 5;
-            display: none; /* Hidden unless needed */
+            background: rgba(29, 185, 84, 0.1);
+            padding: 5px 15px;
+            border-radius: 20px;
+            border: 1px solid #1DB954;
         }
 
         #wake-status {
@@ -133,14 +112,13 @@
 <body>
 
     <div id="selection-overlay">
+        <div id="version-tag">STABLE V1.0.6</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
-        <div id="version-tag">VERSION 1.0.5</div>
     </div>
 
-    <div id="music-zone" onclick="handleMusicTap(event)">
-        <div id="song-display"><strong>Song Title</strong> - Artist Name</div>
-        <div id="progress-bar"></div>
+    <div id="music-zone">
+        <div id="song-display"><strong>Workout Timer</strong></div>
     </div>
 
     <div id="workout-zone" onclick="handleWorkoutTap(event)">
@@ -149,12 +127,10 @@
             <div class="exercise-name" id="name-a">--</div>
             <div class="exercise-stats" id="stats-a">--</div>
         </div>
-
         <div id="timer-container">
             <div class="activity-label" id="timer-label">REST</div>
             <div id="timer">00:00</div>
         </div>
-
         <div class="superset-box" id="box-b">
             <div class="activity-label">EXERCISE B</div>
             <div class="exercise-name" id="name-b">--</div>
@@ -163,10 +139,9 @@
     </div>
 
     <div id="wake-status">SCREEN LOCK: INACTIVE</div>
-    <button id="fs-btn" onclick="toggleFullscreen()">⛶ FULLSCREEN</button>
 
     <script>
-        const VERSION = "1.0.5";
+        const VERSION = "1.0.6";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -182,11 +157,6 @@
                 wakeLock = await navigator.wakeLock.request('screen');
                 document.getElementById('wake-status').innerText = "SCREEN LOCK: ACTIVE";
                 document.getElementById('wake-status').style.color = "#1DB954";
-                wakeLock.addEventListener('release', () => {
-                    document.getElementById('wake-status').innerText = "SCREEN LOCK: INACTIVE";
-                    document.getElementById('wake-status').style.color = "#333";
-                    wakeLock = null;
-                });
             } catch (err) { console.warn("Wake Lock fail"); }
         }
 
@@ -196,54 +166,35 @@
 
             try {
                 requestWakeLock();
-                const timestamp = new Date().getTime();
-                const response = await fetch(`${CSV_URL}&cachebust=${timestamp}`);
-                
-                if (!response.ok) throw new Error("Could not reach Google Sheets");
-                
+                const response = await fetch(`${CSV_URL}&cb=${new Date().getTime()}`);
                 const rawText = await response.text();
-                const rows = rawText.split(/\r?\n|\r/).map(row => 
-                    row.split(',').map(cell => cell.trim())
-                );
+                const rows = rawText.split(/\r?\n|\r/).map(row => row.split(',').map(cell => cell.trim()));
 
-                workoutData = rows.slice(1).filter(row => 
-                    row[0] && row[0].toLowerCase() === type.toLowerCase()
-                );
+                workoutData = rows.slice(1).filter(row => row[0] && row[0].toLowerCase() === type.toLowerCase());
 
-                if (workoutData.length === 0) {
-                    throw new Error(`Sheet found, but no rows labeled '${type}' in Column A`);
-                }
+                if (workoutData.length === 0) throw new Error("No exercises found");
 
                 overlay.style.display = 'none';
-                currentIndex = 0;
                 displayExercise();
-
             } catch (err) {
-                overlay.innerHTML = `
-                    <div style="text-align:center; padding:20px;">
-                        <p style="color:red;">Error: ${err.message}</p>
-                        <button class="routine-btn" onclick="location.reload()">Try Again</button>
-                        <p style="color:#1DB954; margin-top:20px;">Ver ${VERSION}</p>
-                    </div>`;
+                alert("Error: " + err.message);
+                location.reload();
             }
         }
 
         function displayExercise() {
             const exA = workoutData[currentIndex];
             const exB = workoutData[currentIndex + 1];
-
             if (exA) {
                 document.getElementById('name-a').innerText = exA[1].toUpperCase();
                 document.getElementById('stats-a').innerText = `${exA[2]} x ${exA[3]}`;
             }
-
             if (exB) {
                 document.getElementById('name-b').innerText = exB[1].toUpperCase();
                 document.getElementById('stats-b').innerText = `${exB[2]} x ${exB[3]}`;
                 document.getElementById('box-b').style.opacity = "1";
             } else {
                 document.getElementById('name-b').innerText = "FINISH";
-                document.getElementById('stats-b').innerText = "";
                 document.getElementById('box-b').style.opacity = "0.3";
             }
             resetTimer();
@@ -263,13 +214,11 @@
             if (isRunning) return;
             isRunning = true;
             document.getElementById('timer').style.color = '#1DB954';
-            document.getElementById('timer-label').innerText = "RUNNING";
             timerInterval = setInterval(() => {
                 seconds++;
                 let mins = Math.floor(seconds / 60);
                 let secs = seconds % 60;
-                document.getElementById('timer').innerText = 
-                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                document.getElementById('timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
             }, 1000);
         }
 
@@ -289,14 +238,6 @@
             seconds = 0;
             document.getElementById('timer').innerText = "00:00";
             document.getElementById('timer').style.color = 'white';
-            document.getElementById('timer-label').innerText = "REST";
-        }
-
-        function handleMusicTap(e) { console.log("Music Tap"); }
-
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); } 
-            else { document.exitFullscreen(); }
         }
 
         if ('serviceWorker' in navigator) {
@@ -306,7 +247,6 @@
                         const installingWorker = reg.installing;
                         installingWorker.onstatechange = () => {
                             if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // New content is available; force refresh
                                 location.reload();
                             }
                         };
