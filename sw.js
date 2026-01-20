@@ -1,7 +1,17 @@
-const CACHE_NAME = 'workout-v1.2.1';
+const CACHE_NAME = 'workout-v1.2.3';
+
+// Files to cache
+const urlsToCache = [
+  './',
+  './index.html',
+  './manifest.json'
+];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -18,8 +28,11 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// NETWORK FIRST LOGIC: This prevents the phone from getting stuck on old versions
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
+    })
   );
 });
