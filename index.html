@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.3.0</title>
+    <title>Workout Timer OS - V1.3.1</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -136,7 +136,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.3.0</div>
+        <div id="version-tag">STABLE V1.3.1</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -171,14 +171,13 @@
     </div>
 
     <script>
-        const VERSION = "1.3.0";
+        const VERSION = "1.3.1";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
-        let timerInterval;
+        let timerInterval = null;
         let seconds = 0;
         let activeRestGoal = 0;
-        let wakeLock = null;
 
         let audioCtx;
         const BEEP_PEAKS = [220, 438, 874, 1743, 2662];
@@ -225,25 +224,16 @@
 
         async function startRoutine(type) {
             const overlay = document.getElementById('selection-overlay');
-            overlay.innerText = "Loading CSV...";
+            overlay.innerText = "Connecting...";
             try {
-                // Simplified fetch to prevent reload loops
                 const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmrKfGKM6t61M-jDPlPcClxpoewbXNUWoaKoPzdEGdLEFdlvvCM-y456r46CYkh1YXEV-KvmEuWP7o/pub?gid=0&single=true&output=csv";
-                const response = await fetch(`${csvUrl}&cachebust=${Date.now()}`);
-                if (!response.ok) throw new Error("Network response was not ok");
-                
+                const response = await fetch(`${csvUrl}&cb=${Date.now()}`);
                 const rawText = await response.text();
                 const rows = rawText.split(/\r?\n|\r/).map(row => row.split(',').map(cell => cell.trim()));
                 workoutData = rows.slice(1).filter(row => row[0] && row[0].toLowerCase() === type.toLowerCase());
-                
-                if (workoutData.length === 0) throw new Error("No data found for this routine");
-                
                 overlay.style.display = 'none';
                 displayExercise();
-            } catch (err) { 
-                console.error(err);
-                overlay.innerHTML = `<div style="color:red">Error Loading CSV: ${err.message}</div><button onclick="location.reload()" style="margin-top:20px; padding:10px;">Retry</button>`;
-            }
+            } catch (err) { alert("CSV Error: " + err.message); }
         }
 
         function displayExercise() {
@@ -269,39 +259,65 @@
         function handleWorkoutTap(e) {
             initAudio(); 
             const isLeft = e.clientX < window.innerWidth / 2;
+            
             if (isRunning) {
-                if (isLeft) stopTimer(); 
-                else {
+                if (isLeft) {
+                    stopTimer(); 
+                } else {
+                    // NEXT exercise logic
                     if (currentIndex < workoutData.length - 1) {
                         currentIndex++;
-                        seconds = 0;
-                        displayExercise();
-                        updateTimerColor();
-                    } else { location.reload(); }
+                        resetAndForceRestart(); // Fixes the 00:01 skip
+                    } else {
+                        location.reload();
+                    }
                 }
             } else {
-                if (isLeft && currentIndex > 0) { currentIndex--; displayExercise(); seconds = 0; updateTimerDisplay(); } 
-                else startTimer();
+                if (isLeft && currentIndex > 0) {
+                    currentIndex--;
+                    seconds = 0;
+                    displayExercise();
+                    updateTimerDisplay();
+                    updateTimerColor();
+                } else {
+                    startTimer();
+                }
             }
+        }
+
+        // Specifically designed to reset the clock to zero and restart the 1s interval
+        function resetAndForceRestart() {
+            stopTimer(); // Clear existing interval
+            seconds = 0;
+            displayExercise();
+            updateTimerDisplay();
+            updateTimerColor();
+            startTimer(); // Re-establish fresh 1000ms interval
         }
 
         function startTimer() {
             isRunning = true;
-            if (!timerInterval) {
-                timerInterval = setInterval(() => {
-                    seconds++;
-                    updateTimerDisplay();
-                    updateTimerColor();
-                    checkAudioTrigger(); 
-                }, 1000);
-            }
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                seconds++;
+                updateTimerDisplay();
+                updateTimerColor();
+                checkAudioTrigger(); 
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = null;
+            isRunning = false;
+            document.getElementById('timer-label').innerText = "PAUSED";
         }
 
         function checkAudioTrigger() {
             if (activeRestGoal > 0) {
                 const remaining = activeRestGoal - seconds;
                 if (remaining === 4) {
-                    const syncStart = audioCtx.currentTime + 0.7; // 3.3s offset
+                    const syncStart = audioCtx.currentTime + 0.7; // 3.3s manual offset
                     playBuzzer(false, true, 4.0, syncStart);
                     playBuzzer(false, false, 0.5, syncStart);
                     playBuzzer(false, false, 0.5, syncStart + 1.0);
@@ -311,18 +327,13 @@
             }
         }
 
-        function stopTimer() {
-            clearInterval(timerInterval);
-            timerInterval = null;
-            isRunning = false;
-            document.getElementById('timer-label').innerText = "PAUSED";
-        }
-
         function updateTimerColor() {
             const isRest = activeRestGoal > 0 && seconds < activeRestGoal;
-            document.getElementById('timer').style.color = isRest ? '#3498db' : '#1DB954';
-            document.getElementById('timer-label').innerText = isRest ? "RESTING" : "LIFTING";
-            document.getElementById('timer-label').style.color = isRest ? '#3498db' : '#1DB954';
+            const t = document.getElementById('timer');
+            const l = document.getElementById('timer-label');
+            t.style.color = isRest ? '#3498db' : '#1DB954';
+            l.innerText = isRest ? "RESTING" : "LIFTING";
+            l.style.color = isRest ? '#3498db' : '#1DB954';
         }
 
         function updateTimerDisplay() {
