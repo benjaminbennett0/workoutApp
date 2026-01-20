@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.2.9</title>
+    <title>Workout Timer OS - V1.3.0</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -136,7 +136,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.2.9</div>
+        <div id="version-tag">STABLE V1.3.0</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -171,7 +171,7 @@
     </div>
 
     <script>
-        const VERSION = "1.2.9";
+        const VERSION = "1.3.0";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -192,7 +192,6 @@
 
         function playBuzzer(isFinal = false, isGhost = false, customDuration = 4.0, startTime = null) {
             initAudio();
-            // Use the provided startTime (for scheduling) or the current audio context time
             const now = startTime || audioCtx.currentTime;
             const duration = isFinal ? 1.0 : 0.5;
             const peaks = isFinal ? GO_PEAKS : BEEP_PEAKS;
@@ -226,14 +225,25 @@
 
         async function startRoutine(type) {
             const overlay = document.getElementById('selection-overlay');
+            overlay.innerText = "Loading CSV...";
             try {
-                const response = await fetch(`https://docs.google.com/spreadsheets/d/e/2PACX-1vQmrKfGKM6t61M-jDPlPcClxpoewbXNUWoaKoPzdEGdLEFdlvvCM-y456r46CYkh1YXEV-KvmEuWP7o/pub?gid=0&single=true&output=csv&cb=${new Date().getTime()}`);
+                // Simplified fetch to prevent reload loops
+                const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmrKfGKM6t61M-jDPlPcClxpoewbXNUWoaKoPzdEGdLEFdlvvCM-y456r46CYkh1YXEV-KvmEuWP7o/pub?gid=0&single=true&output=csv";
+                const response = await fetch(`${csvUrl}&cachebust=${Date.now()}`);
+                if (!response.ok) throw new Error("Network response was not ok");
+                
                 const rawText = await response.text();
                 const rows = rawText.split(/\r?\n|\r/).map(row => row.split(',').map(cell => cell.trim()));
                 workoutData = rows.slice(1).filter(row => row[0] && row[0].toLowerCase() === type.toLowerCase());
+                
+                if (workoutData.length === 0) throw new Error("No data found for this routine");
+                
                 overlay.style.display = 'none';
                 displayExercise();
-            } catch (err) { alert("Error: " + err.message); }
+            } catch (err) { 
+                console.error(err);
+                overlay.innerHTML = `<div style="color:red">Error Loading CSV: ${err.message}</div><button onclick="location.reload()" style="margin-top:20px; padding:10px;">Retry</button>`;
+            }
         }
 
         function displayExercise() {
@@ -249,6 +259,7 @@
                     document.getElementById('box-b').style.opacity = "1";
                 } else {
                     document.getElementById('name-b').innerText = "SINGLE SET";
+                    document.getElementById('stats-b').innerText = "";
                     document.getElementById('box-b').style.opacity = "0.3";
                 }
             }
@@ -286,25 +297,16 @@
             }
         }
 
-        /**
-         * MANUAL SYNC LOGIC
-         * Instead of checking for exactly 3 seconds left, we trigger slightly early
-         * at 4 seconds left and use a calculated offset of 0.7s (resulting in 3.3s before end).
-         */
         function checkAudioTrigger() {
             if (activeRestGoal > 0) {
                 const remaining = activeRestGoal - seconds;
-                
-                // When we hit 4 seconds left on the VISUAL timer, 
-                // we schedule the sequence to start in 0.7 seconds.
-                // 4.0 - 0.7 = 3.3 seconds of lead time.
                 if (remaining === 4) {
-                    const syncStart = audioCtx.currentTime + 0.7;
-                    playBuzzer(false, true, 4.0, syncStart);         // Harmony
-                    playBuzzer(false, false, 0.5, syncStart);        // Beep 3
-                    playBuzzer(false, false, 0.5, syncStart + 1.0);  // Beep 2
-                    playBuzzer(false, false, 0.5, syncStart + 2.0);  // Beep 1
-                    playBuzzer(true, false, 1.0, syncStart + 3.0);   // GO!
+                    const syncStart = audioCtx.currentTime + 0.7; // 3.3s offset
+                    playBuzzer(false, true, 4.0, syncStart);
+                    playBuzzer(false, false, 0.5, syncStart);
+                    playBuzzer(false, false, 0.5, syncStart + 1.0);
+                    playBuzzer(false, false, 0.5, syncStart + 2.0);
+                    playBuzzer(true, false, 1.0, syncStart + 3.0);
                 }
             }
         }
@@ -331,16 +333,7 @@
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => { 
-                navigator.serviceWorker.register(`./sw.js?v=${new Date().getTime()}`).then(reg => {
-                    reg.onupdatefound = () => {
-                        const installingWorker = reg.installing;
-                        installingWorker.onstatechange = () => {
-                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                window.location.reload();
-                            }
-                        };
-                    };
-                });
+                navigator.serviceWorker.register('./sw.js');
             });
         }
     </script>
