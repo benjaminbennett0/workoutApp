@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#000000">
     <link rel="manifest" href="manifest.json">
-    <title>Workout Timer OS - V2.0.9q</title>
+    <title>Workout Timer OS - V2.0.9r</title>
     <style>
         body { 
             margin: 0; background: #000; color: white; 
@@ -22,10 +22,10 @@
             background-position: 0 15vh, 0 85vh;
             background-repeat: no-repeat;
         }
-        /* Safe Zones (HUD) */
+
         .safe-zone { height: 15vh; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; pointer-events: none; }
         
-        /* THE CLICK AREA: Must be z-index 10 and cover the center */
+        /* Fixed Active Zone: Ensure it captures all clicks */
         #active-zone { 
             height: 70vh; 
             width: 100%; 
@@ -35,12 +35,11 @@
             cursor: pointer; 
             z-index: 10; 
             position: relative;
-            background: transparent; /* Ensures the whole area is tappable */
+            background: rgba(0,0,0,0.01); /* Necessary for some browsers to detect touch */
         }
 
         .hud-display { font-variant-numeric: tabular-nums; font-size: clamp(1rem, 8vh, 10vw); color: #ffffff; font-weight: 300; }
         
-        /* Centered at 50% as requested */
         #timer-display { 
             font-variant-numeric: tabular-nums; 
             display: flex; 
@@ -50,7 +49,7 @@
             top: 50%; 
             left: 50%; 
             transform: translate(-50%, -50%); 
-            pointer-events: none; /* Allows clicks to pass through to active-zone */
+            pointer-events: none; 
         }
 
         #main-time { font-family: system-ui, -apple-system, sans-serif; font-size: clamp(5rem, 45vh, 75vw); font-weight: 700; line-height: 1; letter-spacing: -2px; }
@@ -63,7 +62,7 @@
     </style>
 </head>
 <body id="body">
-    <div id="version-tag">V2.0.9q</div>
+    <div id="version-tag">V2.0.9r</div>
 
     <div class="safe-zone"><div id="clock" class="hud-display">00:00:00</div></div>
 
@@ -76,9 +75,17 @@
     <div class="safe-zone"><div id="session-timer" class="hud-display">0:00:00</div></div>
 
     <script>
-        // Service Worker registration
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js').catch(() => {});
+            navigator.serviceWorker.register('./sw.js').then(reg => {
+                reg.onupdatefound = () => {
+                    const installingWorker = reg.installing;
+                    installingWorker.onstatechange = () => {
+                        if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            window.location.reload();
+                        }
+                    };
+                };
+            });
         }
 
         let restDuration = 25; 
@@ -95,7 +102,7 @@
             if (!('wakeLock' in navigator)) return;
             try {
                 wakeLock = await navigator.wakeLock.request('screen');
-            } catch (err) { console.log("WakeLock failed"); }
+            } catch (err) {}
         }
 
         function initAudio() {
@@ -171,21 +178,32 @@
             msDisplay.innerText = `.${Math.floor((ms % 1000) / 100)}`;
         }
 
-        // INPUT LISTENERS - Fixed for reliability
-        activeZone.addEventListener('mousedown', (e) => { 
-            engageSystems(); 
-            pressTimer = setTimeout(() => { isRestPhase = false; audioTriggered = true; pressTimer = null; }, 500); 
-        });
-        activeZone.addEventListener('mouseup', () => { 
-            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; if (!isRunning) startTimer(); else resetTimer(); } 
-        });
-        activeZone.addEventListener('touchstart', (e) => { 
-            engageSystems(); 
-            pressTimer = setTimeout(() => { isRestPhase = false; audioTriggered = true; pressTimer = null; }, 500); 
-        }, {passive: true});
-        activeZone.addEventListener('touchend', () => { 
-            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; if (!isRunning) startTimer(); else resetTimer(); } 
-        }, {passive: true});
+        // Consolidated Input Logic
+        function handleInteractionStart() {
+            engageSystems();
+            pressTimer = setTimeout(() => {
+                isRestPhase = false;
+                audioTriggered = true;
+                pressTimer = null;
+            }, 500);
+        }
+
+        function handleInteractionEnd() {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+                if (!isRunning) startTimer();
+                else resetTimer();
+            }
+        }
+
+        activeZone.addEventListener('mousedown', handleInteractionStart);
+        window.addEventListener('mouseup', handleInteractionEnd);
+        activeZone.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleInteractionStart();
+        }, {passive: false});
+        window.addEventListener('touchend', handleInteractionEnd);
 
         document.addEventListener('visibilitychange', () => { 
             if (document.visibilityState === 'visible') { 
