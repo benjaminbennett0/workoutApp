@@ -2,389 +2,158 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.3.2</title>
-    
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1DB954">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Workout Timer</title>
     <style>
-        body { 
-            margin: 0; 
-            background: #000; 
-            color: white; 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-            overflow: hidden; 
-            height: 100vh; 
-            width: 100vw; 
-        }
-        
-        #music-zone { 
-            height: 15vh; 
-            border-bottom: 2px solid #333; 
-            position: relative; 
-            display: flex; 
-            flex-direction: column;
-            align-items: center; 
-            justify-content: center; 
-            background: #000;
-        }
-
-        #song-display {
-            font-size: 1.5vw;
-            color: #fff;
-            text-align: center;
-            margin-bottom: 8px;
-            letter-spacing: 1px;
-        }
-
-        #spotify-status {
-            font-size: 0.8vw;
-            color: #1DB954;
-            text-transform: uppercase;
-            margin-top: 4px;
-            font-weight: bold;
-        }
-
-        .progress-stack {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-        }
-
-        #song-progress-container {
-            width: 100%;
-            height: 3px;
-            background: #222;
-        }
-        #song-progress-bar {
-            height: 100%;
-            background: #1DB954; 
-            width: 0%;
-            transition: width 0.5s linear;
-        }
-
-        #workout-progress-container {
-            width: 100%;
-            height: 6px;
-            background: #111;
-        }
-        #workout-progress-bar { 
-            height: 100%; 
-            background: #fff; 
-            width: 0%; 
-            transition: width 0.5s ease;
-        }
-
-        #workout-zone { 
-            height: 85vh; 
-            display: flex; 
-            flex-direction: row; 
-            align-items: center; 
-            justify-content: space-evenly; 
-        }
-
-        .superset-box {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            text-align: center;
-        }
-
-        #timer-container {
-            width: 25vw;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border-left: 1px solid #333;
-            border-right: 1px solid #333;
-            height: 60%;
-        }
-        
-        #timer { font-size: 8vw; font-weight: bold; line-height: 1; transition: color 0.4s ease; }
-        .activity-label { font-size: 1.2vw; color: #1DB954; letter-spacing: 2px; margin-bottom: 5px; transition: color 0.4s; }
-        .set-label { font-size: 2vw; color: #fff; margin-top: 10px; font-weight: bold; }
-        .exercise-name { font-size: 3.5vw; font-weight: bold; margin: 10px 0; line-height: 1.1; }
-        .exercise-stats { font-size: 2.5vw; color: #aaa; }
-
-        #selection-overlay { 
-            position: fixed; 
-            inset: 0; 
-            background: black; 
-            display: flex; 
-            flex-direction: column;
-            gap: 20px; 
-            align-items: center; 
-            justify-content: center; 
-            z-index: 10; 
-        }
-        .routine-btn { 
-            padding: 40px; 
-            font-size: 2rem; 
-            background: #222; 
-            border: 2px solid white; 
-            color: white; 
-            border-radius: 15px; 
-            cursor: pointer;
-            width: 300px;
-        }
-
-        #version-tag {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #1DB954;
-            font-size: 18px;
-            font-weight: bold;
-            background: rgba(29, 185, 84, 0.1);
-            padding: 5px 15px;
-            border-radius: 20px;
-            border: 1px solid #1DB954;
-        }
+        :root { --primary: #1DB954; --bg: #000; --card: #111; }
+        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        .container { background: var(--card); padding: 40px; border-radius: 30px; border: 2px solid var(--primary); text-align: center; width: 320px; box-shadow: 0 0 20px rgba(29, 185, 84, 0.2); }
+        .timer-display { font-size: 5rem; font-weight: bold; margin: 20px 0; font-variant-numeric: tabular-nums; color: var(--primary); text-shadow: 0 0 10px rgba(29, 185, 84, 0.5); }
+        .label { text-transform: uppercase; letter-spacing: 2px; color: #888; font-size: 0.9rem; }
+        .controls { display: flex; flex-direction: column; gap: 15px; margin-top: 30px; }
+        button { padding: 20px; border-radius: 15px; border: none; font-weight: bold; font-size: 1.1rem; cursor: pointer; transition: 0.2s; }
+        #startBtn { background: var(--primary); color: #000; }
+        #startBtn:active { transform: scale(0.95); }
+        #resetBtn { background: #333; color: #fff; }
+        .status { margin-top: 15px; height: 20px; font-size: 0.8rem; color: #555; }
     </style>
 </head>
 <body>
 
-    <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.3.2</div>
-        <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
-        <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
+    <div class="container">
+        <div class="label" id="phaseLabel">Ready?</div>
+        <div class="timer-display" id="display">05:00</div>
+        
+        <div class="controls">
+            <button id="startBtn" onclick="toggleTimer()">START WORKOUT</button>
+            <button id="resetBtn" onclick="resetTimer()">RESET</button>
+        </div>
+        <div class="status" id="status">Audio Engine: Standby</div>
     </div>
 
-    <div id="music-zone">
-        <div id="song-display">
-            <div id="track-name">Spotify Standby</div>
-            <div id="spotify-status">Waiting for Connection</div>
-        </div>
-        <div class="progress-stack">
-            <div id="song-progress-container">
-                <div id="song-progress-bar"></div>
-            </div>
-            <div id="workout-progress-container">
-                <div id="workout-progress-bar"></div>
-            </div>
-        </div>
-    </div>
+<script>
+    // --- AUDIO CALIBRATION (V1.5.6) ---
+    const BEEP_PEAKS = [220, 438, 874, 1743, 2662];
+    const GO_PEAKS = [438, 874, 1743, 2663, 3490, 5328];
+    const VOL_MIX = [1.0, 0.8, 0.5, 0.4, 0.3, 0.4]; // Based on your slider choices
+    const GHOST_VOL = 0.10;
+    const GO_FADE_START = 0.9;
+    const GO_FADE_TO = 0.5;
 
-    <div id="workout-zone" onclick="handleWorkoutTap(event)">
-        <div class="superset-box" id="box-a">
-            <div class="activity-label" id="label-a">EXERCISE A</div>
-            <div class="exercise-name" id="name-a">--</div>
-            <div class="exercise-stats" id="stats-a">--</div>
-        </div>
-        <div id="timer-container">
-            <div class="activity-label" id="timer-label">READY</div>
-            <div id="timer">00:00</div>
-            <div class="set-label" id="set-number">SET 1</div>
-        </div>
-        <div class="superset-box" id="box-b">
-            <div class="activity-label" id="label-b">EXERCISE B</div>
-            <div class="exercise-name" id="name-b">--</div>
-            <div class="exercise-stats" id="stats-b">--</div>
-        </div>
-    </div>
+    let audioCtx;
+    let timerInterval;
+    let timeLeft = 300; // 5 minutes
+    let isRunning = false;
 
-    <script>
-        const VERSION = "1.3.2";
-        let workoutData = [];
-        let currentIndex = 0;
-        let isRunning = false;
-        let timerInterval;
-        let seconds = 0;
-        let activeRestGoal = 0;
-        let wakeLock = null;
-
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        function playBeep(frequency, duration, type = 'triangle') {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            
-            oscillator.type = type; 
-            oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-            
-            // Subtle fade out to avoid "pops"
-            gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + duration);
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            document.getElementById('status').innerText = "Audio Engine: Active";
         }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
 
-        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmrKfGKM6t61M-jDPlPcClxpoewbXNUWoaKoPzdEGdLEFdlvvCM-y456r46CYkh1YXEV-KvmEuWP7o/pub?gid=0&single=true&output=csv";
+    function playBuzzer(isFinal = false, isGhost = false, customDuration = 4.0) {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const duration = isFinal ? 1.0 : 0.5;
+        const peaks = isFinal ? GO_PEAKS : BEEP_PEAKS;
 
-        async function requestWakeLock() {
-            if (!('wakeLock' in navigator)) return;
-            try {
-                wakeLock = await navigator.wakeLock.request('screen');
-            } catch (err) { console.warn("Wake Lock fail"); }
-        }
+        const masterOut = audioCtx.createGain();
+        masterOut.gain.setValueAtTime(0.2, now);
+        masterOut.connect(audioCtx.destination);
 
-        async function startRoutine(type) {
-            const overlay = document.getElementById('selection-overlay');
-            overlay.innerHTML = `<h1>Connecting...</h1><p style="color:#1DB954">Ver ${VERSION}</p>`;
-            try {
-                requestWakeLock();
-                const response = await fetch(`${CSV_URL}&cb=${new Date().getTime()}`);
-                const rawText = await response.text();
-                const rows = rawText.split(/\r?\n|\r/).map(row => row.split(',').map(cell => cell.trim()));
-                workoutData = rows.slice(1).filter(row => row[0] && row[0].toLowerCase() === type.toLowerCase());
-                overlay.style.display = 'none';
-                currentIndex = 0;
-                displayExercise();
-            } catch (err) {
-                alert("Error: " + err.message);
-                location.reload();
-            }
-        }
+        peaks.forEach((freq, index) => {
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now);
 
-        function displayExercise() {
-            const currentSuperset = workoutData[currentIndex];
-            if (currentSuperset) {
-                document.getElementById('set-number').innerText = "SET " + currentSuperset[1];
-                document.getElementById('name-a').innerText = currentSuperset[2].toUpperCase();
-                document.getElementById('stats-a').innerText = `${currentSuperset[3]} x ${currentSuperset[4]}`;
-                
-                if (currentIndex > 0) {
-                    const previousSuperset = workoutData[currentIndex - 1];
-                    activeRestGoal = parseInt(previousSuperset[8]) || 0;
-                } else {
-                    activeRestGoal = 0; 
-                }
+            // Select volume from mix (Peak 6 is for GO extras)
+            let peakVol = (isFinal && index >= 4) ? VOL_MIX[5] : VOL_MIX[index];
 
-                if (currentSuperset[5]) {
-                    document.getElementById('name-b').innerText = currentSuperset[5].toUpperCase();
-                    document.getElementById('stats-b').innerText = `${currentSuperset[6]} x ${currentSuperset[7]}`;
-                    document.getElementById('box-b').style.opacity = "1";
-                } else {
-                    document.getElementById('name-b').innerText = "SINGLE SET";
-                    document.getElementById('stats-b').innerText = "";
-                    document.getElementById('box-b').style.opacity = "0.3";
-                }
-            }
-            const progress = (currentIndex / (workoutData.length - 1)) * 100;
-            document.getElementById('workout-progress-bar').style.width = progress + "%";
-        }
-
-        function handleWorkoutTap(e) {
-            const isLeft = e.clientX < window.innerWidth / 2;
-            if (isRunning) {
-                if (isLeft) { stopTimer(); } 
-                else {
-                    if (currentIndex < workoutData.length - 1) {
-                        currentIndex++;
-                        displayExercise();
-                        resetAndAutoStart(); 
-                    } else {
-                        alert("Workout Complete!");
-                        location.reload();
-                    }
-                }
+            if (isGhost) {
+                oscGain.gain.setValueAtTime(0, now);
+                oscGain.gain.linearRampToValueAtTime(peakVol * GHOST_VOL, now + 0.05);
+                oscGain.gain.setValueAtTime(peakVol * GHOST_VOL, now + customDuration);
+                oscGain.gain.setValueAtTime(0, now + customDuration + 0.001);
+            } else if (isFinal) {
+                oscGain.gain.setValueAtTime(peakVol, now);
+                oscGain.gain.setValueAtTime(peakVol, now + GO_FADE_START);
+                oscGain.gain.linearRampToValueAtTime(peakVol * GO_FADE_TO, now + duration);
+                oscGain.gain.setValueAtTime(0, now + duration + 0.001);
             } else {
-                if (isLeft) {
-                    if (currentIndex > 0) { 
-                        currentIndex--; 
-                        displayExercise(); 
-                        resetTimerOnly(); 
-                    } else { location.reload(); }
-                } else { startTimer(); }
+                oscGain.gain.setValueAtTime(peakVol, now);
+                oscGain.gain.setValueAtTime(0, now + duration);
             }
-        }
 
-        function resetAndAutoStart() {
-            seconds = 0;
-            updateTimerDisplay();
-            if (!isRunning) startTimer();
-            else updateTimerColor(); 
-        }
+            osc.connect(oscGain);
+            oscGain.connect(masterOut);
+            osc.start();
+            osc.stop(now + (isGhost ? customDuration : duration) + 0.1);
+        });
+    }
 
-        function startTimer() {
-            isRunning = true;
-            document.getElementById('timer-label').innerText = "RUNNING";
-            updateTimerColor();
-            if (!timerInterval) {
-                timerInterval = setInterval(() => {
-                    seconds++;
-                    updateTimerDisplay();
-                    updateTimerColor();
-                    checkBeeps();
-                }, 1000);
+    // --- TIMER LOGIC ---
+    function runCountdown() {
+        document.getElementById('phaseLabel').innerText = "Get Set...";
+        playBuzzer(false, true, 4.0); // Start Ghost
+        
+        playBuzzer(false, false); // "3"
+        setTimeout(() => playBuzzer(false, false), 1000); // "2"
+        setTimeout(() => playBuzzer(false, false), 2000); // "1"
+        setTimeout(() => {
+            playBuzzer(true, false); // "GO"
+            document.getElementById('phaseLabel').innerText = "GO!";
+            startMainTimer();
+        }, 3000);
+    }
+
+    function startMainTimer() {
+        isRunning = true;
+        document.getElementById('startBtn').innerText = "PAUSE";
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('phaseLabel').innerText = "FINISH!";
             }
-        }
+        }, 1000);
+    }
 
-        function checkBeeps() {
-            if (activeRestGoal > 0) {
-                const remaining = activeRestGoal - seconds;
-                // Mario Kart Frequencies: E5 (659Hz) then A5 (880Hz)
-                if (remaining === 3 || remaining === 2 || remaining === 1) {
-                    playBeep(659.25, 0.2, 'triangle'); 
-                } else if (remaining === 0) {
-                    playBeep(880.00, 0.5, 'square'); 
-                }
-            }
-        }
+    function updateDisplay() {
+        const mins = Math.floor(timeLeft / 60);
+        const secs = timeLeft % 60;
+        document.getElementById('display').innerText = 
+            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
 
-        function stopTimer() {
+    function toggleTimer() {
+        initAudio();
+        if (isRunning) {
             clearInterval(timerInterval);
-            timerInterval = null;
             isRunning = false;
-            document.getElementById('timer').style.color = 'white';
-            document.getElementById('timer-label').innerText = "PAUSED";
-            document.getElementById('timer-label').style.color = 'white';
-        }
-
-        function resetTimerOnly() {
-            seconds = 0;
-            updateTimerDisplay();
-            if (isRunning) updateTimerColor();
-        }
-
-        function updateTimerColor() {
-            const timerEl = document.getElementById('timer');
-            const labelEl = document.getElementById('timer-label');
-            
-            if (activeRestGoal > 0 && seconds < activeRestGoal) {
-                timerEl.style.color = '#3498db'; 
-                labelEl.innerText = "RESTING";
-                labelEl.style.color = '#3498db';
+            document.getElementById('startBtn').innerText = "RESUME";
+        } else {
+            if (timeLeft === 300) {
+                runCountdown();
             } else {
-                timerEl.style.color = '#1DB954'; 
-                labelEl.innerText = "LIFTING";
-                labelEl.style.color = '#1DB954';
+                startMainTimer();
             }
         }
+    }
 
-        function updateTimerDisplay() {
-            let mins = Math.floor(seconds / 60);
-            let secs = seconds % 60;
-            document.getElementById('timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        }
+    function resetTimer() {
+        clearInterval(timerInterval);
+        timeLeft = 300;
+        isRunning = false;
+        updateDisplay();
+        document.getElementById('startBtn').innerText = "START WORKOUT";
+        document.getElementById('phaseLabel').innerText = "Ready?";
+    }
 
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => { 
-                navigator.serviceWorker.register('./sw.js').then(reg => {
-                    reg.onupdatefound = () => {
-                        const installingWorker = reg.installing;
-                        installingWorker.onstatechange = () => {
-                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                location.reload();
-                            }
-                        };
-                    };
-                });
-            });
-        }
-    </script>
+    document.addEventListener('touchstart', initAudio, {once: true});
+</script>
 </body>
 </html>
