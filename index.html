@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.2.2</title>
+    <title>Workout Timer OS - V1.2.3</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -154,7 +154,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.2.2</div>
+        <div id="version-tag">STABLE V1.2.3</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -193,7 +193,7 @@
     </div>
 
     <script>
-        const VERSION = "1.2.2";
+        const VERSION = "1.2.3";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -236,12 +236,12 @@
                 document.getElementById('name-a').innerText = currentSuperset[2].toUpperCase();
                 document.getElementById('stats-a').innerText = `${currentSuperset[3]} x ${currentSuperset[4]}`;
                 
-                // Set the active rest goal based on the PREVIOUS exercise's rest column
+                // REST LOGIC: Check previous row for the rest duration
                 if (currentIndex > 0) {
                     const previousSuperset = workoutData[currentIndex - 1];
                     activeRestGoal = parseInt(previousSuperset[8]) || 0;
                 } else {
-                    activeRestGoal = 0; // First exercise has no previous rest
+                    activeRestGoal = 0; 
                 }
 
                 if (currentSuperset[5]) {
@@ -322,13 +322,12 @@
             const timerEl = document.getElementById('timer');
             const labelEl = document.getElementById('timer-label');
             
-            // Logic Change: Check if there is a rest period from the PREVIOUS set
             if (activeRestGoal > 0 && seconds < activeRestGoal) {
-                timerEl.style.color = '#3498db'; // Blue
+                timerEl.style.color = '#3498db'; // Blue for Resting
                 labelEl.innerText = "RESTING";
                 labelEl.style.color = '#3498db';
             } else {
-                timerEl.style.color = '#1DB954'; // Green
+                timerEl.style.color = '#1DB954'; // Green for Lifting
                 labelEl.innerText = "LIFTING";
                 labelEl.style.color = '#1DB954';
             }
