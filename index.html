@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.2.0</title>
+    <title>Workout Timer OS - V1.2.1</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -108,8 +108,8 @@
             height: 60%;
         }
         
-        #timer { font-size: 8vw; font-weight: bold; line-height: 1; transition: color 0.3s; }
-        .activity-label { font-size: 1.2vw; color: #1DB954; letter-spacing: 2px; margin-bottom: 5px; }
+        #timer { font-size: 8vw; font-weight: bold; line-height: 1; transition: color 0.4s ease; }
+        .activity-label { font-size: 1.2vw; color: #1DB954; letter-spacing: 2px; margin-bottom: 5px; transition: color 0.4s; }
         .set-label { font-size: 2vw; color: #fff; margin-top: 10px; font-weight: bold; }
         .exercise-name { font-size: 3.5vw; font-weight: bold; margin: 10px 0; line-height: 1.1; }
         .exercise-stats { font-size: 2.5vw; color: #aaa; }
@@ -154,7 +154,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.2.0</div>
+        <div id="version-tag">STABLE V1.2.1</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -176,29 +176,30 @@
 
     <div id="workout-zone" onclick="handleWorkoutTap(event)">
         <div class="superset-box" id="box-a">
-            <div class="activity-label">EXERCISE A</div>
+            <div class="activity-label" id="label-a">EXERCISE A</div>
             <div class="exercise-name" id="name-a">--</div>
             <div class="exercise-stats" id="stats-a">--</div>
         </div>
         <div id="timer-container">
-            <div class="activity-label" id="timer-label">REST</div>
+            <div class="activity-label" id="timer-label">READY</div>
             <div id="timer">00:00</div>
             <div class="set-label" id="set-number">SET 1</div>
         </div>
         <div class="superset-box" id="box-b">
-            <div class="activity-label">EXERCISE B</div>
+            <div class="activity-label" id="label-b">EXERCISE B</div>
             <div class="exercise-name" id="name-b">--</div>
             <div class="exercise-stats" id="stats-b">--</div>
         </div>
     </div>
 
     <script>
-        const VERSION = "1.2.0";
+        const VERSION = "1.2.1";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
         let timerInterval;
         let seconds = 0;
+        let restGoal = 0;
         let wakeLock = null;
 
         const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmrKfGKM6t61M-jDPlPcClxpoewbXNUWoaKoPzdEGdLEFdlvvCM-y456r46CYkh1YXEV-KvmEuWP7o/pub?gid=0&single=true&output=csv";
@@ -217,14 +218,8 @@
                 requestWakeLock();
                 const response = await fetch(`${CSV_URL}&cb=${new Date().getTime()}`);
                 const rawText = await response.text();
-                // Regex handles quoted cells if names have commas
                 const rows = rawText.split(/\r?\n|\r/).map(row => row.split(',').map(cell => cell.trim()));
-                
-                // Filter by type (Column A)
                 workoutData = rows.slice(1).filter(row => row[0] && row[0].toLowerCase() === type.toLowerCase());
-                
-                if (workoutData.length === 0) throw new Error("No exercises found for " + type);
-
                 overlay.style.display = 'none';
                 currentIndex = 0;
                 displayExercise();
@@ -236,16 +231,14 @@
 
         function displayExercise() {
             const currentSuperset = workoutData[currentIndex];
-            
             if (currentSuperset) {
-                // Column B: Set #
                 document.getElementById('set-number').innerText = "SET " + currentSuperset[1];
-                
-                // Columns C, D, E: Ex A
                 document.getElementById('name-a').innerText = currentSuperset[2].toUpperCase();
                 document.getElementById('stats-a').innerText = `${currentSuperset[3]} x ${currentSuperset[4]}`;
                 
-                // Columns F, G, H: Ex B
+                // Column I: Rest Goal
+                restGoal = parseInt(currentSuperset[8]) || 0;
+
                 if (currentSuperset[5]) {
                     document.getElementById('name-b').innerText = currentSuperset[5].toUpperCase();
                     document.getElementById('stats-b').innerText = `${currentSuperset[6]} x ${currentSuperset[7]}`;
@@ -256,8 +249,6 @@
                     document.getElementById('box-b').style.opacity = "0.3";
                 }
             }
-
-            // Update Progress Bar (based on rows now)
             const progress = (currentIndex / (workoutData.length - 1)) * 100;
             document.getElementById('workout-progress-bar').style.width = progress + "%";
         }
@@ -267,11 +258,10 @@
             if (isRunning) {
                 if (isLeft) { stopTimer(); } 
                 else {
-                    // Right: Move to next row in Sheet
                     if (currentIndex < workoutData.length - 1) {
                         currentIndex++;
                         displayExercise();
-                        resetTimerOnly(); 
+                        resetAndAutoStart(); 
                     } else {
                         alert("Workout Complete!");
                         location.reload();
@@ -279,7 +269,6 @@
                 }
             } else {
                 if (isLeft) {
-                    // Left: Move to previous row
                     if (currentIndex > 0) { 
                         currentIndex--; 
                         displayExercise(); 
@@ -289,27 +278,55 @@
             }
         }
 
+        function resetAndAutoStart() {
+            seconds = 0;
+            updateTimerDisplay();
+            // Start automatically after a reset from a superset completion
+            if (!isRunning) startTimer();
+            else updateTimerColor(); // Update color immediately if already running
+        }
+
         function startTimer() {
-            if (isRunning) return;
             isRunning = true;
-            document.getElementById('timer').style.color = '#1DB954';
             document.getElementById('timer-label').innerText = "RUNNING";
-            timerInterval = setInterval(() => {
-                seconds++;
-                updateTimerDisplay();
-            }, 1000);
+            updateTimerColor();
+            if (!timerInterval) {
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    updateTimerDisplay();
+                    updateTimerColor();
+                }, 1000);
+            }
         }
 
         function stopTimer() {
             clearInterval(timerInterval);
+            timerInterval = null;
             isRunning = false;
             document.getElementById('timer').style.color = 'white';
             document.getElementById('timer-label').innerText = "PAUSED";
+            document.getElementById('timer-label').style.color = 'white';
         }
 
         function resetTimerOnly() {
             seconds = 0;
             updateTimerDisplay();
+            if (isRunning) updateTimerColor();
+        }
+
+        function updateTimerColor() {
+            const timerEl = document.getElementById('timer');
+            const labelEl = document.getElementById('timer-label');
+            
+            if (restGoal > 0 && seconds < restGoal) {
+                timerEl.style.color = '#3498db'; // Blue
+                labelEl.innerText = "RESTING";
+                labelEl.style.color = '#3498db';
+            } else {
+                timerEl.style.color = '#1DB954'; // Green
+                labelEl.innerText = "LIFTING";
+                labelEl.style.color = '#1DB954';
+            }
         }
 
         function updateTimerDisplay() {
