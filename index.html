@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#000000">
     <link rel="manifest" href="manifest.json">
-    <title>Workout Timer OS - V2.0.9p</title>
+    <title>Workout Timer OS - V2.0.9q</title>
     <style>
         body { 
             margin: 0; background: #000; color: white; 
@@ -22,10 +22,25 @@
             background-position: 0 15vh, 0 85vh;
             background-repeat: no-repeat;
         }
-        .safe-zone { height: 15vh; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; }
-        #active-zone { height: 70vh; width: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; position: relative; }
+        /* Safe Zones (HUD) */
+        .safe-zone { height: 15vh; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; pointer-events: none; }
+        
+        /* THE CLICK AREA: Must be z-index 10 and cover the center */
+        #active-zone { 
+            height: 70vh; 
+            width: 100%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer; 
+            z-index: 10; 
+            position: relative;
+            background: transparent; /* Ensures the whole area is tappable */
+        }
+
         .hud-display { font-variant-numeric: tabular-nums; font-size: clamp(1rem, 8vh, 10vw); color: #ffffff; font-weight: 300; }
         
+        /* Centered at 50% as requested */
         #timer-display { 
             font-variant-numeric: tabular-nums; 
             display: flex; 
@@ -35,7 +50,7 @@
             top: 50%; 
             left: 50%; 
             transform: translate(-50%, -50%); 
-            pointer-events: none; 
+            pointer-events: none; /* Allows clicks to pass through to active-zone */
         }
 
         #main-time { font-family: system-ui, -apple-system, sans-serif; font-size: clamp(5rem, 45vh, 75vw); font-weight: 700; line-height: 1; letter-spacing: -2px; }
@@ -48,7 +63,7 @@
     </style>
 </head>
 <body id="body">
-    <div id="version-tag">V2.0.9p</div>
+    <div id="version-tag">V2.0.9q</div>
 
     <div class="safe-zone"><div id="clock" class="hud-display">00:00:00</div></div>
 
@@ -61,14 +76,13 @@
     <div class="safe-zone"><div id="session-timer" class="hud-display">0:00:00</div></div>
 
     <script>
+        // Service Worker registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js').catch(() => {});
         }
 
-        // Configuration
-        let restDuration = 25; // Updated to 25 seconds
+        let restDuration = 25; 
         let buzzerDuration = 3.0, buzzerOffset = -0.3;
-        
         let startTime = 0, sessionStartTime = 0, elapsed = 0, timerInterval = null;
         let isRunning = false, isRestPhase = false, audioTriggered = false, pressTimer = null, wakeLock = null;
         let audioCtx;
@@ -81,8 +95,7 @@
             if (!('wakeLock' in navigator)) return;
             try {
                 wakeLock = await navigator.wakeLock.request('screen');
-                wakeLock.addEventListener('release', () => { wakeLock = null; });
-            } catch (err) {}
+            } catch (err) { console.log("WakeLock failed"); }
         }
 
         function initAudio() {
@@ -104,3 +117,82 @@
             const masterOut = audioCtx.createGain();
             masterOut.gain.setValueAtTime(0.2, now);
             masterOut.connect(audioCtx.destination);
+            peaks.forEach((freq) => {
+                const osc = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                osc.frequency.setValueAtTime(freq, now);
+                g.gain.setValueAtTime(isGhost ? 0.04 : 0.5, now);
+                g.gain.setValueAtTime(0, now + (isGhost ? duration : 0.5));
+                osc.connect(g); g.connect(masterOut);
+                osc.start(now); osc.stop(now + duration + 0.1);
+            });
+        }
+
+        function startTimer() {
+            initAudio();
+            const now = performance.now();
+            startTime = now; sessionStartTime = now;
+            isRunning = true; isRestPhase = true; audioTriggered = false;
+            if (timerInterval) cancelAnimationFrame(timerInterval);
+            timerInterval = requestAnimationFrame(updateClock);
+        }
+
+        function resetTimer() { 
+            startTime = performance.now(); 
+            isRestPhase = true; 
+            audioTriggered = false; 
+        }
+
+        function updateClock(now) {
+            if (!isRunning) return;
+            clockDisplay.innerText = new Date().toLocaleTimeString([], { hour12: true, hour: 'numeric', minute: '2-digit', second: '2-digit' });
+            const sE = Math.floor((now - sessionStartTime) / 1000);
+            sessionDisplay.innerText = `${Math.floor(sE / 3600)}:${Math.floor((sE % 3600) / 60).toString().padStart(2, '0')}:${(sE % 60).toString().padStart(2, '0')}`;
+            elapsed = now - startTime;
+            let totalSeconds = elapsed / 1000;
+            if (isRestPhase && totalSeconds >= restDuration) isRestPhase = false;
+            if (isRestPhase && !audioTriggered && totalSeconds >= (restDuration - buzzerDuration + buzzerOffset)) {
+                audioTriggered = true;
+                const sync = audioCtx.currentTime;
+                playBuzzer(false, true, 4.0, sync);
+                playBuzzer(false, false, 0.5, sync);
+                playBuzzer(false, false, 0.5, sync + 1.0);
+                playBuzzer(false, false, 0.5, sync + 2.0);
+                playBuzzer(true, false, 1.0, sync + 3.0);
+            }
+            renderMainTimer(elapsed);
+            timerContainer.className = isRestPhase ? 'rest-mode' : 'lift-mode';
+            timerInterval = requestAnimationFrame(updateClock);
+        }
+
+        function renderMainTimer(ms) {
+            let ts = Math.floor(ms / 1000);
+            mainDisplay.innerText = `${Math.floor(ts / 60).toString().padStart(2, '0')}:${(ts % 60).toString().padStart(2, '0')}`;
+            msDisplay.innerText = `.${Math.floor((ms % 1000) / 100)}`;
+        }
+
+        // INPUT LISTENERS - Fixed for reliability
+        activeZone.addEventListener('mousedown', (e) => { 
+            engageSystems(); 
+            pressTimer = setTimeout(() => { isRestPhase = false; audioTriggered = true; pressTimer = null; }, 500); 
+        });
+        activeZone.addEventListener('mouseup', () => { 
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; if (!isRunning) startTimer(); else resetTimer(); } 
+        });
+        activeZone.addEventListener('touchstart', (e) => { 
+            engageSystems(); 
+            pressTimer = setTimeout(() => { isRestPhase = false; audioTriggered = true; pressTimer = null; }, 500); 
+        }, {passive: true});
+        activeZone.addEventListener('touchend', () => { 
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; if (!isRunning) startTimer(); else resetTimer(); } 
+        }, {passive: true});
+
+        document.addEventListener('visibilitychange', () => { 
+            if (document.visibilityState === 'visible') { 
+                requestWakeLock();
+                if (isRunning) startTime = performance.now() - elapsed; 
+            } 
+        });
+    </script>
+</body>
+</html>
