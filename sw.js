@@ -1,4 +1,4 @@
-const CACHE_NAME = 'workout-v1.2.5';
+const CACHE_NAME = 'workout-v1.2.6';
 
 // Files to cache
 const urlsToCache = [
@@ -28,7 +28,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// NETWORK FIRST LOGIC: This prevents the phone from getting stuck on old versions
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request).catch(() => {
@@ -36,4 +35,3 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
-
