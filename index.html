@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.3.1</title>
+    <title>Workout Timer OS - V1.3.2</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -154,7 +154,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.3.1</div>
+        <div id="version-tag">STABLE V1.3.2</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -193,7 +193,7 @@
     </div>
 
     <script>
-        const VERSION = "1.3.1";
+        const VERSION = "1.3.2";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -202,17 +202,20 @@
         let activeRestGoal = 0;
         let wakeLock = null;
 
-        // Audio Context for Beeps
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        function playBeep(frequency, duration) {
+        function playBeep(frequency, duration, type = 'triangle') {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
-            oscillator.type = 'square'; 
+            
+            oscillator.type = type; 
             oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+            
+            // Subtle fade out to avoid "pops"
+            gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
             oscillator.connect(gainNode);
             gainNode.connect(audioCtx.destination);
             oscillator.start();
@@ -252,12 +255,14 @@
                 document.getElementById('set-number').innerText = "SET " + currentSuperset[1];
                 document.getElementById('name-a').innerText = currentSuperset[2].toUpperCase();
                 document.getElementById('stats-a').innerText = `${currentSuperset[3]} x ${currentSuperset[4]}`;
+                
                 if (currentIndex > 0) {
                     const previousSuperset = workoutData[currentIndex - 1];
                     activeRestGoal = parseInt(previousSuperset[8]) || 0;
                 } else {
                     activeRestGoal = 0; 
                 }
+
                 if (currentSuperset[5]) {
                     document.getElementById('name-b').innerText = currentSuperset[5].toUpperCase();
                     document.getElementById('stats-b').innerText = `${currentSuperset[6]} x ${currentSuperset[7]}`;
@@ -321,10 +326,11 @@
         function checkBeeps() {
             if (activeRestGoal > 0) {
                 const remaining = activeRestGoal - seconds;
+                // Mario Kart Frequencies: E5 (659Hz) then A5 (880Hz)
                 if (remaining === 3 || remaining === 2 || remaining === 1) {
-                    playBeep(440, 0.1); 
+                    playBeep(659.25, 0.2, 'triangle'); 
                 } else if (remaining === 0) {
-                    playBeep(880, 0.3); 
+                    playBeep(880.00, 0.5, 'square'); 
                 }
             }
         }
@@ -347,6 +353,7 @@
         function updateTimerColor() {
             const timerEl = document.getElementById('timer');
             const labelEl = document.getElementById('timer-label');
+            
             if (activeRestGoal > 0 && seconds < activeRestGoal) {
                 timerEl.style.color = '#3498db'; 
                 labelEl.innerText = "RESTING";
