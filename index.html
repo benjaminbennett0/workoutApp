@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.2.8</title>
+    <title>Workout Timer OS - V1.2.9</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -136,7 +136,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.2.8</div>
+        <div id="version-tag">STABLE V1.2.9</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -171,7 +171,7 @@
     </div>
 
     <script>
-        const VERSION = "1.2.8";
+        const VERSION = "1.2.9";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -190,9 +190,10 @@
             if (audioCtx.state === 'suspended') audioCtx.resume();
         }
 
-        function playBuzzer(isFinal = false, isGhost = false, customDuration = 4.0) {
+        function playBuzzer(isFinal = false, isGhost = false, customDuration = 4.0, startTime = null) {
             initAudio();
-            const now = audioCtx.currentTime;
+            // Use the provided startTime (for scheduling) or the current audio context time
+            const now = startTime || audioCtx.currentTime;
             const duration = isFinal ? 1.0 : 0.5;
             const peaks = isFinal ? GO_PEAKS : BEEP_PEAKS;
             const masterOut = audioCtx.createGain();
@@ -285,16 +286,25 @@
             }
         }
 
+        /**
+         * MANUAL SYNC LOGIC
+         * Instead of checking for exactly 3 seconds left, we trigger slightly early
+         * at 4 seconds left and use a calculated offset of 0.7s (resulting in 3.3s before end).
+         */
         function checkAudioTrigger() {
             if (activeRestGoal > 0) {
                 const remaining = activeRestGoal - seconds;
-                if (remaining === 3) {
-                    playBuzzer(false, true, 4.0); // Harmony
-                    playBuzzer(false, false, 0.5); // Beep 3
-                } else if (remaining === 2 || remaining === 1) {
-                    playBuzzer(false, false, 0.5);
-                } else if (remaining === 0) {
-                    playBuzzer(true, false, 1.0);
+                
+                // When we hit 4 seconds left on the VISUAL timer, 
+                // we schedule the sequence to start in 0.7 seconds.
+                // 4.0 - 0.7 = 3.3 seconds of lead time.
+                if (remaining === 4) {
+                    const syncStart = audioCtx.currentTime + 0.7;
+                    playBuzzer(false, true, 4.0, syncStart);         // Harmony
+                    playBuzzer(false, false, 0.5, syncStart);        // Beep 3
+                    playBuzzer(false, false, 0.5, syncStart + 1.0);  // Beep 2
+                    playBuzzer(false, false, 0.5, syncStart + 2.0);  // Beep 1
+                    playBuzzer(true, false, 1.0, syncStart + 3.0);   // GO!
                 }
             }
         }
@@ -317,6 +327,21 @@
             let mins = Math.floor(seconds / 60);
             let secs = seconds % 60;
             document.getElementById('timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => { 
+                navigator.serviceWorker.register(`./sw.js?v=${new Date().getTime()}`).then(reg => {
+                    reg.onupdatefound = () => {
+                        const installingWorker = reg.installing;
+                        installingWorker.onstatechange = () => {
+                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                window.location.reload();
+                            }
+                        };
+                    };
+                });
+            });
         }
     </script>
 </body>
