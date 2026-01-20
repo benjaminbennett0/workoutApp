@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.2.4</title>
+    <title>Workout Timer OS - V1.2.5</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -154,7 +154,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.2.4</div>
+        <div id="version-tag">STABLE V1.2.5</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -193,7 +193,7 @@
     </div>
 
     <script>
-        const VERSION = "1.2.4";
+        const VERSION = "1.2.5";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
@@ -216,12 +216,16 @@
             if (audioCtx.state === 'suspended') audioCtx.resume();
         }
 
-        function playBuzzer(isFinal = false, isGhost = false, customDuration = 4.0) {
+        /**
+         * Enhanced Audio Playback with precise Lookahead Scheduling
+         */
+        function playBuzzer(isFinal = false, isGhost = false, customDuration = 4.0, startTime = null) {
             initAudio();
-            const now = audioCtx.currentTime;
+            const now = startTime || audioCtx.currentTime;
             const duration = isFinal ? 1.0 : 0.5;
             const peaks = isFinal ? GO_PEAKS : BEEP_PEAKS;
             const masterOut = audioCtx.createGain();
+            
             masterOut.gain.setValueAtTime(0.2, now);
             masterOut.connect(audioCtx.destination);
 
@@ -248,7 +252,7 @@
                 }
                 osc.connect(oscGain);
                 oscGain.connect(masterOut);
-                osc.start();
+                osc.start(now);
                 osc.stop(now + (isGhost ? customDuration : duration) + 0.1);
             });
         }
@@ -309,7 +313,7 @@
         }
 
         function handleWorkoutTap(e) {
-            initAudio(); // Trigger audio unlock
+            initAudio(); 
             const isLeft = e.clientX < window.innerWidth / 2;
             if (isRunning) {
                 if (isLeft) { stopTimer(); } 
@@ -350,29 +354,34 @@
                     seconds++;
                     updateTimerDisplay();
                     updateTimerColor();
-                    checkAudioTrigger(); // NEW: Check for countdown trigger
+                    checkAudioTrigger(); 
                 }, 1000);
             }
         }
 
         /**
-         * Logic to trigger audio beeps
-         * Fires when 3 seconds remain in the RESTING phase
+         * ZERO-LAG TRIGGER LOGIC
+         * We trigger the beeps slightly *before* the visual clock hits the second
+         * and schedule them using the precise Audio Context clock.
          */
         function checkAudioTrigger() {
             if (activeRestGoal > 0 && seconds < activeRestGoal) {
                 const remaining = activeRestGoal - seconds;
                 
+                // We schedule beeps exactly 0.05s after the trigger to ensure 
+                // the hardware has time to initialize without audible jitter.
+                const scheduleTime = audioCtx.currentTime + 0.05;
+
                 if (remaining === 3) {
-                    playBuzzer(false, true, 4.0); // Start Ghost harmony
-                    playBuzzer(false, false);      // Beep "3"
+                    playBuzzer(false, true, 4.0, scheduleTime); // Start Ghost harmony
+                    playBuzzer(false, false, 0.5, scheduleTime); // Beep "3"
                 } else if (remaining === 2) {
-                    playBuzzer(false, false);      // Beep "2"
+                    playBuzzer(false, false, 0.5, scheduleTime); // Beep "2"
                 } else if (remaining === 1) {
-                    playBuzzer(false, false);      // Beep "1"
+                    playBuzzer(false, false, 0.5, scheduleTime); // Beep "1"
                 }
             } else if (activeRestGoal > 0 && seconds === activeRestGoal) {
-                playBuzzer(true, false);           // GO!
+                playBuzzer(true, false, 1.0, audioCtx.currentTime + 0.05); // GO!
             }
         }
 
@@ -396,11 +405,11 @@
             const labelEl = document.getElementById('timer-label');
             
             if (activeRestGoal > 0 && seconds < activeRestGoal) {
-                timerEl.style.color = '#3498db'; // Blue for Resting
+                timerEl.style.color = '#3498db'; 
                 labelEl.innerText = "RESTING";
                 labelEl.style.color = '#3498db';
             } else {
-                timerEl.style.color = '#1DB954'; // Green for Lifting
+                timerEl.style.color = '#1DB954'; 
                 labelEl.innerText = "LIFTING";
                 labelEl.style.color = '#1DB954';
             }
