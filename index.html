@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Workout Timer OS - V1.2.1</title>
+    <title>Workout Timer OS - V1.2.2</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1DB954">
@@ -154,7 +154,7 @@
 <body>
 
     <div id="selection-overlay">
-        <div id="version-tag">STABLE V1.2.1</div>
+        <div id="version-tag">STABLE V1.2.2</div>
         <button class="routine-btn" onclick="startRoutine('upper')">Upper Body</button>
         <button class="routine-btn" onclick="startRoutine('lower')">Lower Body</button>
     </div>
@@ -193,13 +193,13 @@
     </div>
 
     <script>
-        const VERSION = "1.2.1";
+        const VERSION = "1.2.2";
         let workoutData = [];
         let currentIndex = 0;
         let isRunning = false;
         let timerInterval;
         let seconds = 0;
-        let restGoal = 0;
+        let activeRestGoal = 0;
         let wakeLock = null;
 
         const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmrKfGKM6t61M-jDPlPcClxpoewbXNUWoaKoPzdEGdLEFdlvvCM-y456r46CYkh1YXEV-KvmEuWP7o/pub?gid=0&single=true&output=csv";
@@ -236,8 +236,13 @@
                 document.getElementById('name-a').innerText = currentSuperset[2].toUpperCase();
                 document.getElementById('stats-a').innerText = `${currentSuperset[3]} x ${currentSuperset[4]}`;
                 
-                // Column I: Rest Goal
-                restGoal = parseInt(currentSuperset[8]) || 0;
+                // Set the active rest goal based on the PREVIOUS exercise's rest column
+                if (currentIndex > 0) {
+                    const previousSuperset = workoutData[currentIndex - 1];
+                    activeRestGoal = parseInt(previousSuperset[8]) || 0;
+                } else {
+                    activeRestGoal = 0; // First exercise has no previous rest
+                }
 
                 if (currentSuperset[5]) {
                     document.getElementById('name-b').innerText = currentSuperset[5].toUpperCase();
@@ -281,9 +286,8 @@
         function resetAndAutoStart() {
             seconds = 0;
             updateTimerDisplay();
-            // Start automatically after a reset from a superset completion
             if (!isRunning) startTimer();
-            else updateTimerColor(); // Update color immediately if already running
+            else updateTimerColor(); 
         }
 
         function startTimer() {
@@ -318,7 +322,8 @@
             const timerEl = document.getElementById('timer');
             const labelEl = document.getElementById('timer-label');
             
-            if (restGoal > 0 && seconds < restGoal) {
+            // Logic Change: Check if there is a rest period from the PREVIOUS set
+            if (activeRestGoal > 0 && seconds < activeRestGoal) {
                 timerEl.style.color = '#3498db'; // Blue
                 labelEl.innerText = "RESTING";
                 labelEl.style.color = '#3498db';
